@@ -4,6 +4,7 @@ import path from "node:path";
 import { readDb, writeDb, nowIso, todayIso } from "../lib/db.js";
 import { isAuthConfigured, requirePrivateAccess } from "../lib/auth.js";
 import { importRecommendedSites, RECOMMENDED_COMPETITOR_SITES } from "../lib/recommended-sites.js";
+import { extractGameNameFromUrl } from "../lib/keywords.js";
 import { crawlEnabledSites, makeSite } from "../lib/sitemap.js";
 import { scoreKeyword } from "../lib/scoring.js";
 import { formatBeijingDateTime } from "../lib/time.js";
@@ -78,50 +79,123 @@ function statCard(label, value) {
   return `<section class="stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></section>`;
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat("en-US").format(Number(value || 0));
+}
+
+function formatPercent(part, total) {
+  if (!total) return "0%";
+  return `${Math.round((Number(part || 0) / Number(total)) * 100)}%`;
+}
+
+function getRunStatus(run) {
+  if (!run) return `<span class="badge muted">pending</span>`;
+  if (run.error) {
+    return `<span class="badge ${run.fetched_url_count > 0 ? "warn" : "bad"}">${run.fetched_url_count > 0 ? "partial" : "failed"}</span>`;
+  }
+  return `<span class="badge good">ok</span>`;
+}
+
+function getLatestRunsBySite(runs) {
+  const latestBySite = new Map();
+  for (const run of runs) {
+    if (!latestBySite.has(run.site_domain)) latestBySite.set(run.site_domain, run);
+  }
+  return [...latestBySite.values()];
+}
+
 function renderDashboard(db) {
   const today = todayIso();
   const baselineUrls = db.urls.filter((url) => url.discovery_type === "baseline").length;
-  const todayUrls = db.urls.filter(
+  const incrementalUrls = db.urls.filter((url) => url.discovery_type === "incremental");
+  const todayUrls = incrementalUrls.filter(
     (url) => url.discovery_type === "incremental" && url.first_seen_at?.startsWith(today)
-  ).length;
-  const todayKeywords = db.keywords.filter(
+  );
+  const incrementalKeywords = db.keywords.filter((keyword) => keyword.source_discovery_type === "incremental");
+  const todayKeywords = incrementalKeywords.filter(
     (keyword) => keyword.source_discovery_type === "incremental" && keyword.first_seen_date === today
-  ).length;
-  const highPriority = db.keywords.filter((keyword) => keyword.priority_score >= 70).length;
-  const latestRuns = [...db.runs].slice(0, 8);
+  );
+  const highPriority = incrementalKeywords.filter((keyword) => keyword.priority_score >= 70).length;
+  const pendingReview = incrementalKeywords.filter((keyword) => ["new", "observing"].includes(keyword.status)).length;
+  const latestRuns = getLatestRunsBySite(db.runs).slice(0, 10);
+  const failedSites = latestRuns.filter((run) => run.error && run.fetched_url_count === 0).length;
+  const enabledSites = db.sites.filter((site) => site.enabled).length;
+  const latestFinishedAt = db.runs[0]?.finished_at || "";
+  const opportunityRows = todayUrls
+    .slice(0, 8)
+    .map((row) => ({
+      ...row,
+      game_name: extractGameNameFromUrl(row.url) || "-"
+    }));
+  const signalText =
+    baselineUrls === 0
+      ? "还没有建立基线。先跑 Baseline，把历史库存和真实新增分开。"
+      : incrementalUrls.length === 0
+        ? `已建立 ${formatNumber(baselineUrls)} 条基线 URL。当前还没有真实增量机会，等待下一次 Incremental 扫描。`
+        : `已累计发现 ${formatNumber(incrementalUrls.length)} 条真实增量 URL，优先处理 should_build 和待人工判断词。`;
 
   return layout(
     "Dashboard",
     `<header class="page-head"><div><h1>Dashboard</h1><p>公开 sitemap 信号监控和候选游戏关键词雷达。</p></div></header>
     <div class="stats">
-      ${statCard("基线 URL", baselineUrls)}
-      ${statCard("今日真实新增 URL", todayUrls)}
-      ${statCard("今日新增机会词", todayKeywords)}
-      ${statCard("高优先级关键词", highPriority)}
+      ${statCard("今日真实新增 URL", formatNumber(todayUrls.length))}
+      ${statCard("今日新增机会词", formatNumber(todayKeywords.length))}
+      ${statCard("待人工判断关键词", formatNumber(pendingReview))}
+      ${statCard("should_build 关键词", formatNumber(highPriority))}
     </div>
+    <section class="signal-panel">
+      <div>
+        <span>当前信号状态</span>
+        <strong>${escapeHtml(signalText)}</strong>
+      </div>
+      <div class="signal-metrics">
+        <span>基线 ${formatNumber(baselineUrls)}</span>
+        <span>监控站点 ${formatNumber(enabledSites)}</span>
+        <span>异常站点 ${formatNumber(failedSites)}</span>
+        <span>最近抓取 ${escapeHtml(formatBeijingDateTime(latestFinishedAt) || "-")}</span>
+      </div>
+    </section>
     <section class="panel">
-      <h2>最近抓取</h2>
+      <div class="panel-head">
+        <div>
+          <h2>今日机会</h2>
+          <p>只展示真实增量 URL，基线库存不会进入这里。</p>
+        </div>
+        <a class="button-link" href="/new-urls">View Incremental</a>
+      </div>
       <table>
-        <thead><tr><th>类型</th><th>站点</th><th>发现 URL</th><th>匹配</th><th>过滤</th><th>新增</th><th>更新</th><th>状态</th><th>完成时间</th></tr></thead>
+        <thead><tr><th>游戏名</th><th>来源站点</th><th>URL</th><th>发现时间</th></tr></thead>
+        <tbody>${opportunityRows
+          .map(
+            (row) => `<tr>
+              <td><strong>${escapeHtml(row.game_name)}</strong></td>
+              <td>${escapeHtml(row.source_site)}</td>
+              <td><a href="${escapeHtml(row.url)}">${escapeHtml(row.url)}</a></td>
+              <td>${escapeHtml(formatBeijingDateTime(row.first_seen_at))}</td>
+            </tr>`
+          )
+          .join("") || `<tr><td colspan="4" class="empty">今天还没有真实增量 URL。</td></tr>`}</tbody>
+      </table>
+    </section>
+    <section class="panel">
+      <h2>站点健康</h2>
+      <table>
+        <thead><tr><th>站点</th><th>最近类型</th><th>发现 URL</th><th>匹配率</th><th>过滤率</th><th>新增</th><th>更新</th><th>状态</th><th>最后抓取</th></tr></thead>
         <tbody>${latestRuns
           .map(
             (run) => `<tr>
-              <td><span class="badge ${run.run_type === "baseline" ? "muted" : "good"}">${escapeHtml(run.run_type || "incremental")}</span></td>
               <td>${escapeHtml(run.site_domain)}</td>
-              <td>${run.fetched_url_count}</td>
-              <td>${run.matched_url_count || 0}</td>
-              <td>${run.filtered_url_count || 0}</td>
+              <td><span class="badge ${run.run_type === "baseline" ? "muted" : "good"}">${escapeHtml(run.run_type || "incremental")}</span></td>
+              <td>${formatNumber(run.fetched_url_count)}</td>
+              <td><strong>${formatPercent(run.matched_url_count, run.fetched_url_count)}</strong><div class="cell-note">${formatNumber(run.matched_url_count || 0)} matched</div></td>
+              <td><strong>${formatPercent(run.filtered_url_count, run.fetched_url_count)}</strong><div class="cell-note">${formatNumber(run.filtered_url_count || 0)} filtered</div></td>
               <td>${run.new_url_count}</td>
               <td>${run.updated_url_count}</td>
-              <td>${
-                run.error
-                  ? `<span class="badge ${run.fetched_url_count > 0 ? "warn" : "bad"}">${run.fetched_url_count > 0 ? "partial" : "failed"}</span> ${escapeHtml(run.error)}`
-                  : `<span class="badge good">ok</span>`
-              }</td>
+              <td>${getRunStatus(run)}${run.error ? `<div class="cell-note">${escapeHtml(run.error)}</div>` : ""}</td>
               <td>${escapeHtml(formatBeijingDateTime(run.finished_at))}</td>
             </tr>`
           )
-          .join("") || `<tr><td colspan="9" class="empty">还没有抓取记录。</td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="9" class="empty">还没有站点抓取记录。</td></tr>`}</tbody>
       </table>
     </section>`
   );
