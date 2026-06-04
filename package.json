@@ -1,0 +1,17 @@
+{
+  "name": "game-seo-keyword-radar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
+    "crawl": "node src/cli.js crawl",
+    "baseline": "node src/cli.js baseline",
+    "seed": "node src/cli.js seed",
+    "check": "node scripts/smoke-test.js"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
