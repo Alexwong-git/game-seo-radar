@@ -371,6 +371,32 @@ textarea {
   line-height: 1.35;
 }
 
+.minor-link {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.keyword-variants,
+.factor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.keyword-variants span,
+.factor-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  background: var(--muted-bg);
+  color: #344054;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.5fr);

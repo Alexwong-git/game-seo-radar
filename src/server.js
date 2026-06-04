@@ -360,37 +360,72 @@ function renderNewUrls(db, url) {
 
 function renderKeywords(db, url) {
   const showVariants = url.searchParams.get("view") === "variants";
+  const filter = url.searchParams.get("filter") || "review";
   const opportunityKeywords = db.keywords.filter((keyword) => keyword.source_discovery_type === "incremental");
-  const baseRows = showVariants ? [...opportunityKeywords] : uniqueGameRows(opportunityKeywords);
-  const rows = baseRows.sort((a, b) => b.priority_score - a.priority_score).slice(0, showVariants ? 300 : 100);
-  const totalGames = uniqueGameRows(opportunityKeywords).length;
+  const gameRows = uniqueGameRows(opportunityKeywords);
+  const baseRows = showVariants ? [...opportunityKeywords] : gameRows;
+  const filteredRows = baseRows.filter((keyword) => {
+    if (filter === "all") return true;
+    if (filter === "review") return ["new", "observing"].includes(keyword.status);
+    if (filter === "should_build" || filter === "observe" || filter === "reject") return keyword.build_signal === filter;
+    return keyword.status === filter;
+  });
+  const filterHref = (nextFilter, variantView = showVariants) =>
+    `/keywords?filter=${nextFilter}${variantView ? "&view=variants" : ""}`;
+  const visibleRows = filteredRows.sort((a, b) => b.priority_score - a.priority_score).slice(0, showVariants ? 300 : 100);
+  const totalGames = gameRows.length;
+  const reviewCount = gameRows.filter((keyword) => ["new", "observing"].includes(keyword.status)).length;
+  const shouldBuildCount = gameRows.filter((keyword) => keyword.build_signal === "should_build").length;
+  const observeCount = gameRows.filter((keyword) => keyword.build_signal === "observe").length;
+  const launchedCount = gameRows.filter((keyword) => keyword.status === "launched").length;
 
   return layout(
     "Keywords",
-    `<header class="page-head"><div><h1>Keywords</h1><p>默认只显示前 100 个游戏机会；先人工判断趋势和竞争，再把好词推到 should_build。</p></div>
+    `<header class="page-head"><div><h1>Keywords</h1><p>人工判断队列：先补趋势、竞争和制作难度，再把好词推到 should_build。</p></div>
       <div class="toolbar">
-        <a class="button-link ${showVariants ? "" : "active"}" href="/keywords">Games Top 100 (${totalGames})</a>
-        <a class="button-link ${showVariants ? "active" : ""}" href="/keywords?view=variants">Raw rows (${opportunityKeywords.length})</a>
+        <a class="button-link ${filter === "review" && !showVariants ? "active" : ""}" href="/keywords">Review (${reviewCount})</a>
+        <a class="button-link ${filter === "should_build" ? "active" : ""}" href="${filterHref("should_build", false)}">Should Build (${shouldBuildCount})</a>
+        <a class="button-link ${filter === "observe" ? "active" : ""}" href="${filterHref("observe", false)}">Observe (${observeCount})</a>
+        <a class="button-link ${filter === "launched" ? "active" : ""}" href="${filterHref("launched", false)}">Launched (${launchedCount})</a>
+        <a class="button-link ${filter === "all" && !showVariants ? "active" : ""}" href="${filterHref("all", false)}">All (${totalGames})</a>
+        <a class="button-link ${showVariants ? "active" : ""}" href="${filterHref(filter, true)}">Raw rows (${opportunityKeywords.length})</a>
       </div>
     </header>
+    <div class="stats">
+      ${statCard("待判断游戏", formatNumber(reviewCount))}
+      ${statCard("should_build", formatNumber(shouldBuildCount))}
+      ${statCard("observe", formatNumber(observeCount))}
+      ${statCard("已上线", formatNumber(launchedCount))}
+    </div>
     <section class="panel">
       <table>
-        <thead><tr><th>关键词</th><th>游戏名</th><th>来源</th><th>状态</th><th>趋势</th><th>难度</th><th>SERP</th><th>分数</th><th>建议</th></tr></thead>
-        <tbody>${rows
+        <thead><tr><th>关键词</th><th>游戏 / 变体</th><th>来源</th><th>首见</th><th>人工状态</th><th>判断因子</th><th>分数</th><th>建议</th></tr></thead>
+        <tbody>${visibleRows
           .map(
             (keyword) => `<tr>
-              <td><a href="/keywords/${keyword.id}">${escapeHtml(keyword.keyword)}</a></td>
-              <td>${escapeHtml(keyword.game_name)}</td>
-              <td>${escapeHtml(keyword.source_site)}</td>
+              <td><a href="/keywords/${keyword.id}"><strong>${escapeHtml(keyword.keyword)}</strong></a></td>
+              <td>
+                ${escapeHtml(keyword.game_name)}
+                <div class="keyword-variants">${(keyword.variants || []).slice(0, 4).map((variant) => `<span>${escapeHtml(variant)}</span>`).join("")}</div>
+              </td>
+              <td>
+                ${escapeHtml(keyword.source_site)}
+                <div><a class="minor-link" href="${escapeHtml(keyword.source_url)}">source URL</a></div>
+              </td>
+              <td>${escapeHtml(keyword.first_seen_date)}</td>
               <td><span class="badge">${escapeHtml(keyword.status)}</span></td>
-              <td>${escapeHtml(keyword.google_trends_status)}</td>
-              <td>${escapeHtml(keyword.production_difficulty)}</td>
-              <td>${escapeHtml(keyword.serp_competition)}</td>
+              <td>
+                <div class="factor-list">
+                  <span>Trend: ${escapeHtml(keyword.google_trends_status)}</span>
+                  <span>Build: ${escapeHtml(keyword.production_difficulty)}</span>
+                  <span>SERP: ${escapeHtml(keyword.serp_competition)}</span>
+                </div>
+              </td>
               <td><strong>${keyword.priority_score}</strong></td>
               <td><span class="badge ${keyword.build_signal === "should_build" ? "good" : keyword.build_signal === "observe" ? "warn" : "muted"}">${escapeHtml(keyword.build_signal)}</span></td>
             </tr>`
           )
-          .join("") || `<tr><td colspan="9" class="empty">还没有候选词。</td></tr>`}</tbody>
+          .join("") || `<tr><td colspan="8" class="empty">当前筛选下还没有候选词。</td></tr>`}</tbody>
       </table>
     </section>`
   );
