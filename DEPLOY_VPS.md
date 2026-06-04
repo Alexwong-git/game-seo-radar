@@ -3,7 +3,7 @@
 这份手册适用于你当前的腾讯云新加坡 VPS：
 
 - 系统：Ubuntu 24.04 LTS
-- Docker / docker-compose：已安装
+- Docker / docker-compose 1.29.2：已安装
 - 项目目录：`/opt/game-seo-radar`
 - 数据目录：`/opt/game-seo-radar/data`
 - 日志目录：`/opt/game-seo-radar/logs`
@@ -79,26 +79,26 @@ RADAR_PASSWORD=replace-with-a-long-random-password
 
 ```bash
 cd /opt/game-seo-radar
-docker compose build
+docker-compose build
 ```
 
 ## 4. 启动服务
 
 ```bash
-docker compose up -d
+docker-compose up -d
 ```
 
 确认容器状态：
 
 ```bash
-docker compose ps
+docker-compose ps
 ```
 
 如果这是服务器第一次部署，并且还没有站点配置，可以先导入内置推荐竞品站：
 
 ```bash
-docker compose run --rm radar npm run seed
-docker compose restart radar
+docker-compose run --rm radar npm run seed
+docker-compose restart radar
 ```
 
 ## 5. 查看日志
@@ -106,7 +106,7 @@ docker compose restart radar
 查看 Docker 实时日志：
 
 ```bash
-docker compose logs -f radar
+docker-compose logs -f radar
 ```
 
 查看写入文件的 Web 日志：
@@ -119,22 +119,22 @@ tail -f /opt/game-seo-radar/logs/web.log
 
 ```bash
 cd /opt/game-seo-radar
-docker compose restart radar
+docker-compose restart radar
 ```
 
 如果更新了代码或 Dockerfile：
 
 ```bash
 cd /opt/game-seo-radar
-docker compose build
-docker compose up -d
+docker-compose build
+docker-compose up -d
 ```
 
 ## 7. 停止服务
 
 ```bash
 cd /opt/game-seo-radar
-docker compose down
+docker-compose down
 ```
 
 这不会删除 `data`、`logs`、`backups` 目录里的数据。
@@ -158,7 +158,7 @@ tail -f /opt/game-seo-radar/logs/crawl.log
 
 ```bash
 cd /opt/game-seo-radar
-docker compose run --rm radar npm run baseline
+docker-compose run --rm radar npm run baseline
 ```
 
 baseline 是历史库存，不生成机会词；后续 `crawl` 才是真实增量信号。
@@ -245,13 +245,13 @@ RADAR_PASSWORD=your-password
 
 ```bash
 cd /opt/game-seo-radar
-docker compose ps
+docker-compose ps
 ```
 
 检查端口映射：
 
 ```bash
-docker compose port radar 3002
+docker-compose port radar 3002
 ```
 
 确认腾讯云安全组已放行 `3002`。
@@ -268,7 +268,7 @@ cat .env
 确认 `RADAR_USER` 和 `RADAR_PASSWORD` 没有多余空格。修改后重启：
 
 ```bash
-docker compose restart radar
+docker-compose restart radar
 ```
 
 ### 数据没有持久化
@@ -316,7 +316,7 @@ tail -n 200 /opt/game-seo-radar/logs/crawl.log
 
 ```bash
 cd /opt/game-seo-radar
-docker compose build --no-cache
+docker-compose build --no-cache
 ```
 
 确认 VPS 可以访问 Docker Hub。如果无法拉取 `node:24-bookworm-slim`，需要检查服务器网络或 Docker 镜像源。
@@ -327,8 +327,8 @@ docker compose build --no-cache
 
 ```bash
 cd /opt/game-seo-radar
-docker compose build
-docker compose up -d
+docker-compose build
+docker-compose up -d
 ```
 
 ### 想恢复备份
@@ -337,7 +337,7 @@ docker compose up -d
 
 ```bash
 cd /opt/game-seo-radar
-docker compose down
+docker-compose down
 ```
 
 解压指定备份并覆盖数据库：
@@ -345,5 +345,5 @@ docker compose down
 ```bash
 gunzip -c /opt/game-seo-radar/backups/radar-YYYYMMDD-HHMMSS.sqlite.gz > /opt/game-seo-radar/data/radar.sqlite
 rm -f /opt/game-seo-radar/data/radar.sqlite-shm /opt/game-seo-radar/data/radar.sqlite-wal
-docker compose up -d
+docker-compose up -d
 ```

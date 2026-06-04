@@ -23,11 +23,12 @@ mkdir -p "$BACKUP_DIR" "$LOG_DIR" "$ROOT_DIR/data"
 
 echo "[$(TZ="$TZ" date '+%Y-%m-%d %H:%M:%S %Z')] Starting SQLite backup" | tee -a "$LOG_FILE"
 
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && [ -f "$ROOT_DIR/docker-compose.yml" ]; then
-  if docker compose ps --services --filter "status=running" | grep -qx "radar"; then
-    docker compose exec -T radar sh -c "sqlite3 \"\${DATABASE_PATH:-/app/data/radar.sqlite}\" \".backup '/app/backups/$BACKUP_NAME'\""
+if command -v docker-compose >/dev/null 2>&1 && [ -f "$ROOT_DIR/docker-compose.yml" ]; then
+  RUNNING_CONTAINER="$(docker-compose ps -q radar || true)"
+  if [ -n "$RUNNING_CONTAINER" ] && [ "$(docker inspect -f '{{.State.Running}}' "$RUNNING_CONTAINER" 2>/dev/null || echo false)" = "true" ]; then
+    docker-compose exec -T radar sh -c "sqlite3 \"\${DATABASE_PATH:-/app/data/radar.sqlite}\" \".backup '/app/backups/$BACKUP_NAME'\""
   else
-    docker compose run --rm radar sh -c "sqlite3 \"\${DATABASE_PATH:-/app/data/radar.sqlite}\" \".backup '/app/backups/$BACKUP_NAME'\""
+    docker-compose run --rm radar sh -c "sqlite3 \"\${DATABASE_PATH:-/app/data/radar.sqlite}\" \".backup '/app/backups/$BACKUP_NAME'\""
   fi
 else
   SQLITE_PATH="${DATABASE_PATH:-$ROOT_DIR/data/radar.sqlite}"
