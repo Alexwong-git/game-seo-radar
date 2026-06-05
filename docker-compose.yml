@@ -2,7 +2,7 @@ services:
   radar:
     build: .
     container_name: game-seo-radar
-    restart: unless-stopped
+    restart: always
     init: true
     env_file:
       - .env
@@ -18,7 +18,12 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./backups:/app/backups
-    command: sh -c "mkdir -p /app/logs && npm run start 2>&1 | tee -a /app/logs/web.log"
+    command: ["npm", "run", "start"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:' + (process.env.PORT || 3002)).then((r) => process.exit([200, 401].includes(r.status) ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 30s

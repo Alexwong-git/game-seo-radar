@@ -109,10 +109,10 @@ docker-compose restart radar
 docker-compose logs -f radar
 ```
 
-查看写入文件的 Web 日志：
+Web 服务日志现在主要由 Docker 保存，并自动做大小轮转。查看最近日志：
 
 ```bash
-tail -f /opt/game-seo-radar/logs/web.log
+docker-compose logs --tail=120 radar
 ```
 
 ## 6. 重启服务
@@ -183,7 +183,49 @@ crontab -e
 crontab -l
 ```
 
-## 10. 备份 SQLite
+## 10. 配置自动守护，网页挂了自动拉起
+
+`docker-compose.yml` 已配置 `restart: always`，Docker 自己会尽量自动重启 Web 服务。为了防止老版本 `docker-compose` 卡在 `KeyError: 'ContainerConfig'` 或容器异常退出后没人处理，建议再加一个 1 分钟一次的 watchdog。
+
+先确保脚本可执行：
+
+```bash
+cd /opt/game-seo-radar
+chmod +x scripts/*.sh
+```
+
+手动试跑一次：
+
+```bash
+cd /opt/game-seo-radar
+./scripts/radar-watchdog.sh
+docker-compose ps
+curl -I http://127.0.0.1:3002
+```
+
+如果 `curl` 返回 `HTTP/1.1 401 Unauthorized`，这是正常的，说明网页服务已启动，只是开启了登录保护。
+
+然后写入 cron：
+
+```bash
+crontab -e
+```
+
+加入这一行：
+
+```cron
+* * * * * cd /opt/game-seo-radar && /opt/game-seo-radar/scripts/radar-watchdog.sh >> /opt/game-seo-radar/logs/cron.log 2>&1
+```
+
+查看 watchdog 日志：
+
+```bash
+tail -n 120 /opt/game-seo-radar/logs/watchdog.log
+```
+
+这个脚本只会重启或移除 Docker 容器本身，不会删除 `data/` 里的 SQLite 数据库。
+
+## 11. 备份 SQLite
 
 手动备份：
 
@@ -218,7 +260,7 @@ crontab -e
 0 3 * * * cd /opt/game-seo-radar && /opt/game-seo-radar/scripts/backup.sh >> /opt/game-seo-radar/logs/cron.log 2>&1
 ```
 
-## 11. 访问后台
+## 12. 访问后台
 
 浏览器打开：
 
@@ -237,7 +279,7 @@ RADAR_PASSWORD=your-password
 
 如果打不开，请先确认腾讯云安全组已经放行 TCP `3002` 端口。
 
-## 12. 常见错误排查
+## 13. 常见错误排查
 
 ### 端口打不开
 
