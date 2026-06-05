@@ -9,6 +9,7 @@ import {
   RECOMMENDED_COMPETITOR_SITES
 } from "../lib/recommended-sites.js";
 import { extractGameNameFromUrl } from "../lib/keywords.js";
+import { getKeywordRootStats, importKeywordRootSeeds } from "../lib/keyword-roots.js";
 import { crawlEnabledSites, makeSite } from "../lib/sitemap.js";
 import { scoreKeyword } from "../lib/scoring.js";
 import { formatBeijingDateTime } from "../lib/time.js";
@@ -56,7 +57,8 @@ function layout(title, body) {
     ["/", "Dashboard"],
     ["/sites", "Sites"],
     ["/new-urls", "New URLs"],
-    ["/keywords", "Keywords"]
+    ["/keywords", "Keywords"],
+    ["/roots", "Roots"]
   ];
 
   return `<!doctype html>
@@ -534,6 +536,107 @@ function renderKeywords(db, url) {
   );
 }
 
+function renderRoots(db, url) {
+  const roots = db.keyword_roots || [];
+  const stats = getKeywordRootStats(roots);
+  const selectedType = url.searchParams.get("type") || "all";
+  const status = url.searchParams.get("status") || "enabled";
+  const query = (url.searchParams.get("q") || "").trim().toLowerCase();
+  const typeNames = Object.keys(stats.typeCounts).sort((a, b) => a.localeCompare(b));
+  const filteredRoots = roots.filter((root) => {
+    if (selectedType !== "all" && root.site_type !== selectedType) return false;
+    if (status === "enabled" && !root.enabled) return false;
+    if (status === "disabled" && root.enabled) return false;
+    if (status === "missing_volume" && Number(root.monthly_volume || 0) > 0) return false;
+    if (!query) return true;
+
+    const haystack = [
+      root.root,
+      root.raw_root,
+      root.site_type,
+      root.user_intent,
+      root.opportunity,
+      ...(root.example_queries || [])
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+  const visibleRows = [...filteredRoots]
+    .sort((a, b) => Number(b.monthly_volume || 0) - Number(a.monthly_volume || 0) || a.source_order - b.source_order)
+    .slice(0, 200);
+  const importDisabled = roots.length >= 119;
+
+  return layout(
+    "Roots",
+    `<header class="page-head"><div><h1>Roots</h1><p>自己的词根库：先用这些根去跑 Trends / Suggest，再把高信号词送进 Review。</p></div>
+      <div class="toolbar">
+        <form method="post" action="/api/roots/import-seeds">
+          <button class="primary compact-button" type="submit" ${importDisabled ? "disabled" : ""}>Import Seeds</button>
+        </form>
+      </div>
+    </header>
+    <div class="stats">
+      ${statCard("词根总数", formatNumber(stats.total))}
+      ${statCard("已启用", formatNumber(stats.enabled))}
+      ${statCard("有 SemRush 量级", formatNumber(stats.withVolume))}
+      ${statCard("类型数", formatNumber(typeNames.length))}
+    </div>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>筛选词根</h2>
+          <p>先从游戏、图片、AI 工具相关类型开始跑；宽泛词根只作为补充实验。</p>
+        </div>
+      </div>
+      <form class="root-filter" method="get" action="/roots">
+        <label>Type
+          <select name="type">
+            <option value="all" ${selectedType === "all" ? "selected" : ""}>All types</option>
+            ${typeNames.map((type) => `<option value="${escapeHtml(type)}" ${selectedType === type ? "selected" : ""}>${escapeHtml(type)} (${stats.typeCounts[type]})</option>`).join("")}
+          </select>
+        </label>
+        <label>Status
+          <select name="status">
+            <option value="enabled" ${status === "enabled" ? "selected" : ""}>Enabled</option>
+            <option value="all" ${status === "all" ? "selected" : ""}>All</option>
+            <option value="disabled" ${status === "disabled" ? "selected" : ""}>Disabled</option>
+            <option value="missing_volume" ${status === "missing_volume" ? "selected" : ""}>Missing volume</option>
+          </select>
+        </label>
+        <label>Search<input name="q" value="${escapeHtml(query)}" placeholder="game, image, generator"></label>
+        <button type="submit">Apply</button>
+      </form>
+    </section>
+    <section class="panel">
+      <table>
+        <thead><tr><th>词根</th><th>类型</th><th>月均量</th><th>常见组合</th><th>意图 / 机会</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${visibleRows
+          .map(
+            (root) => `<tr>
+              <td><strong>${escapeHtml(root.root)}</strong><div class="cell-note">#${Number(root.source_order || 0)}</div></td>
+              <td>${escapeHtml(root.site_type || "未分类")}</td>
+              <td>${root.monthly_volume ? formatNumber(root.monthly_volume) : `<span class="cell-note">待补</span>`}</td>
+              <td><div class="keyword-variants">${(root.example_queries || []).slice(0, 5).map((example) => `<span>${escapeHtml(example)}</span>`).join("")}</div></td>
+              <td>
+                <div class="truncate-text">${escapeHtml(root.user_intent || root.opportunity || "待补充需求判断。")}</div>
+                ${root.opportunity ? `<div class="cell-note truncate-text">${escapeHtml(root.opportunity)}</div>` : ""}
+              </td>
+              <td><span class="badge ${root.enabled ? "good" : "muted"}">${root.enabled ? "enabled" : "disabled"}</span></td>
+              <td>
+                <form method="post" action="/api/roots/toggle">
+                  <input type="hidden" name="id" value="${root.id}">
+                  <button type="submit">${root.enabled ? "Disable" : "Enable"}</button>
+                </form>
+              </td>
+            </tr>`
+          )
+          .join("") || `<tr><td colspan="7" class="empty">还没有词根。点击 Import Seeds 导入这批词根。</td></tr>`}</tbody>
+      </table>
+    </section>`
+  );
+}
+
 function select(name, current, options) {
   return `<select name="${name}">${options
     .map((option) => `<option value="${option}" ${option === current ? "selected" : ""}>${option}</option>`)
@@ -674,6 +777,22 @@ async function handlePost(request, response) {
     return redirect(response, `/keywords/${body.get("id")}`);
   }
 
+  if (request.url === "/api/roots/import-seeds") {
+    importKeywordRootSeeds(db);
+    await writeDb(db);
+    return redirect(response, "/roots");
+  }
+
+  if (request.url === "/api/roots/toggle") {
+    const root = (db.keyword_roots || []).find((item) => item.id === body.get("id"));
+    if (root) {
+      root.enabled = !root.enabled;
+      root.updated_at = nowIso();
+    }
+    await writeDb(db);
+    return redirect(response, "/roots");
+  }
+
   if (request.url === "/api/crawl") {
     await crawlEnabledSites(db, { runType: "incremental" });
     await writeDb(db);
@@ -708,11 +827,13 @@ async function handleGet(request, response) {
         ? renderSites(db)
         : url.pathname === "/new-urls"
           ? renderNewUrls(db, url)
-          : url.pathname === "/keywords"
-            ? renderKeywords(db, url)
-            : url.pathname.startsWith("/keywords/")
-              ? renderKeywordDetail(db, url.pathname.split("/").at(-1))
-              : layout("Not Found", `<section class="panel"><h1>Not found</h1></section>`);
+      : url.pathname === "/keywords"
+        ? renderKeywords(db, url)
+        : url.pathname.startsWith("/keywords/")
+          ? renderKeywordDetail(db, url.pathname.split("/").at(-1))
+          : url.pathname === "/roots"
+            ? renderRoots(db, url)
+            : layout("Not Found", `<section class="panel"><h1>Not found</h1></section>`);
 
   response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   response.end(html);

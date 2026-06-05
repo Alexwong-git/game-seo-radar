@@ -255,6 +255,13 @@ button {
   margin: 0;
 }
 
+.root-filter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+}
+
 .button-link {
   display: inline-flex;
   align-items: center;
@@ -401,6 +408,15 @@ textarea {
   line-height: 1.35;
 }
 
+.truncate-text {
+  max-width: 520px;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
+}
+
 .minor-link {
   color: var(--muted);
   font-size: 12px;
@@ -502,6 +518,7 @@ dd {
   nav,
   .stats,
   .radar-stats,
+  .root-filter,
   .grid-form,
   .detail-grid {
     grid-template-columns: 1fr;

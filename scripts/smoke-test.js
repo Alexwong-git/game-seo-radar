@@ -6,6 +6,7 @@ import {
   extractGameNameFromUrl,
   repairKeywordCandidates
 } from "../lib/keywords.js";
+import { getKeywordRootStats, importKeywordRootSeeds } from "../lib/keyword-roots.js";
 import { scoreKeyword } from "../lib/scoring.js";
 import { crawlSite, makeSite } from "../lib/sitemap.js";
 
@@ -219,6 +220,13 @@ try {
   assert.equal(repairResult.repaired.length, 1);
   assert.equal(repairDb.keywords[0].keyword, "4x4 chess");
   assert.deepEqual(repairDb.keywords[0].variants.slice(0, 2), ["4x4 chess", "4x4 chess game"]);
+
+  const rootDb = { keyword_roots: [] };
+  const rootImportResult = importKeywordRootSeeds(rootDb);
+  assert.equal(rootImportResult.imported.length, 119);
+  assert.equal(rootDb.keyword_roots.find((root) => root.root === "calculator").monthly_volume, 24900000);
+  assert.equal(rootDb.keyword_roots.find((root) => root.root === "changer").example_queries[0], "ai photo changer");
+  assert.equal(getKeywordRootStats(rootDb.keyword_roots).enabled, 119);
 
   console.log("Smoke test passed.");
 } finally {

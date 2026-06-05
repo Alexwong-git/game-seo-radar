@@ -17,6 +17,7 @@
 - sitemap 请求有超时和有限重试，单个子 sitemap 失败会记录为 partial，不会轻易拖垮整站抓取。
 - 增量扫描会优先处理带 `lastmod` 的最新 URL 和最新子 sitemap，避免大站只反复扫描旧库存。
 - Dashboard 内置网站雷达，可一键启用 A/B 级扩展信号源。
+- 内置 119 个自有词根，可导入 Roots 工作台，后续用于 Trends / Suggest API 挖掘新词。
 - 支持记录上线 URL、收录状态、7 天曝光点击和复盘备注。
 - 时间展示和每日统计统一使用北京时间。
 - 可通过 `RADAR_PASSWORD` 开启私有访问。
@@ -31,6 +32,8 @@
 ├── lib/
 │   ├── auth.js              # 私有访问鉴权
 │   ├── db.js                # SQLite 存储、迁移、ID 工具
+│   ├── keyword-root-seeds.js # 自有词根 seed 数据
+│   ├── keyword-roots.js      # 词根导入、统计和归一化
 │   ├── keywords.js          # 游戏名提取和候选词生成
 │   ├── recommended-sites.js # 推荐竞品站配置
 │   ├── scoring.js           # 100 分制评分
@@ -109,6 +112,23 @@
 - `created_at`
 - `updated_at`
 
+`keyword_roots`
+
+- `id`
+- `source_order`
+- `site_type`
+- `root`
+- `raw_root`
+- `example_queries`
+- `user_intent`
+- `opportunity`
+- `monthly_volume`
+- `enabled`
+- `last_mined_at`
+- `notes`
+- `created_at`
+- `updated_at`
+
 `runs`
 
 - `id`
@@ -175,6 +195,20 @@ npm run check
 ```
 
 这个命令会使用模拟 sitemap 跑一遍抓取、URL 过滤、diff、关键词提取和评分，不会访问外部网站。
+
+## 导入词根库
+
+```bash
+npm run import-roots
+```
+
+导入后打开：
+
+```text
+http://localhost:3002/roots
+```
+
+Roots 页面用于维护自有词根库。它不是最终机会词列表，而是后续 Trends / Suggest / SERP API 挖掘的种子池。
 
 ## 配置站点
 

@@ -13,6 +13,7 @@
     "prune-radar-pack": "node src/cli.js prune-radar-pack",
     "backfill-keywords": "node src/cli.js backfill-keywords",
     "repair-keywords": "node src/cli.js repair-keywords",
+    "import-roots": "node src/cli.js import-roots",
     "check": "node scripts/smoke-test.js"
   },
   "engines": {
