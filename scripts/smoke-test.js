@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
-import { backfillKeywordCandidates, createKeywordCandidates, extractGameNameFromUrl } from "../lib/keywords.js";
+import {
+  backfillKeywordCandidates,
+  createKeywordCandidates,
+  extractGameNameFromUrl,
+  repairKeywordCandidates
+} from "../lib/keywords.js";
 import { scoreKeyword } from "../lib/scoring.js";
 import { crawlSite, makeSite } from "../lib/sitemap.js";
 
@@ -60,6 +65,8 @@ try {
   assert.equal(name, "banana cat run");
   assert.equal(extractGameNameFromUrl("https://poki.com/en/g/home-builder-clicker"), "home builder clicker");
   assert.equal(extractGameNameFromUrl("https://poki.com/en/g/box-monster-dress-up"), "box monster dress up");
+  assert.equal(extractGameNameFromUrl("https://www.coolmathgames.com/0-4x4-chess"), "4x4 chess");
+  assert.equal(extractGameNameFromUrl("https://www.coolmathgames.com/0-bus-parking-out"), "bus parking out");
 
   const candidates = createKeywordCandidates({
     sourceSite: "example.com",
@@ -190,6 +197,28 @@ try {
   const backfillResult = backfillKeywordCandidates(backfillDb);
   assert.equal(backfillResult.created.length, 1);
   assert.equal(backfillDb.keywords[0].keyword, "home builder clicker");
+
+  const repairDb = {
+    sites: [],
+    urls: [],
+    keywords: [
+      {
+        ...backfillDb.keywords[0],
+        id: "kw_coolmath_dirty",
+        source_site: "coolmathgames.com",
+        source_url: "https://www.coolmathgames.com/0-4x4-chess",
+        keyword: "0 4x4 chess",
+        game_name: "0 4x4 chess",
+        variants: ["0 4x4 chess", "0 4x4 chess game"],
+        status: "new"
+      }
+    ],
+    runs: []
+  };
+  const repairResult = repairKeywordCandidates(repairDb);
+  assert.equal(repairResult.repaired.length, 1);
+  assert.equal(repairDb.keywords[0].keyword, "4x4 chess");
+  assert.deepEqual(repairDb.keywords[0].variants.slice(0, 2), ["4x4 chess", "4x4 chess game"]);
 
   console.log("Smoke test passed.");
 } finally {

@@ -12,6 +12,7 @@
     "enable-radar-pack": "node src/cli.js enable-radar-pack",
     "prune-radar-pack": "node src/cli.js prune-radar-pack",
     "backfill-keywords": "node src/cli.js backfill-keywords",
+    "repair-keywords": "node src/cli.js repair-keywords",
     "check": "node scripts/smoke-test.js"
   },
   "engines": {

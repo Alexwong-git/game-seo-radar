@@ -1,5 +1,5 @@
 import { readDb, writeDb } from "../lib/db.js";
-import { backfillKeywordCandidates } from "../lib/keywords.js";
+import { backfillKeywordCandidates, repairKeywordCandidates } from "../lib/keywords.js";
 import {
   enableRecommendedSitePack,
   importRecommendedSites,
@@ -41,6 +41,13 @@ async function backfillKeywords() {
   console.log(`Backfilled ${created.length} keyword candidates from incremental URLs; skipped ${skipped.length}.`);
 }
 
+async function repairKeywords() {
+  const db = await readDb();
+  const { repaired, skipped } = repairKeywordCandidates(db, { discoveryType: "incremental" });
+  await writeDb(db);
+  console.log(`Repaired ${repaired.length} pending keyword candidates; skipped ${skipped.length}.`);
+}
+
 async function crawl() {
   const db = await readDb();
   const runType = command === "baseline" ? "baseline" : "incremental";
@@ -61,8 +68,10 @@ if (command === "seed") {
   await pruneRadarPack();
 } else if (command === "backfill-keywords") {
   await backfillKeywords();
+} else if (command === "repair-keywords") {
+  await repairKeywords();
 } else if (command === "crawl" || command === "baseline") {
   await crawl();
 } else {
-  console.log("Usage: npm run seed | npm run enable-radar-pack | npm run prune-radar-pack | npm run backfill-keywords | npm run baseline | npm run crawl | npm run dev");
+  console.log("Usage: npm run seed | npm run enable-radar-pack | npm run prune-radar-pack | npm run backfill-keywords | npm run repair-keywords | npm run baseline | npm run crawl | npm run dev");
 }
