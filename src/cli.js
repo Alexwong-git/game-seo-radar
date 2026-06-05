@@ -1,5 +1,9 @@
 import { readDb, writeDb } from "../lib/db.js";
-import { enableRecommendedSitePack, importRecommendedSites } from "../lib/recommended-sites.js";
+import {
+  enableRecommendedSitePack,
+  importRecommendedSites,
+  pruneRecommendedSitePack
+} from "../lib/recommended-sites.js";
 import { crawlEnabledSites } from "../lib/sitemap.js";
 
 const command = process.argv[2];
@@ -20,6 +24,15 @@ async function enableRadarPack() {
   );
 }
 
+async function pruneRadarPack() {
+  const db = await readDb();
+  const { imported, updated, disabled } = pruneRecommendedSitePack(db, ["A", "B"]);
+  await writeDb(db);
+  console.log(
+    `Imported ${imported.length}, updated ${updated.length}, and disabled ${disabled.length} C-grade radar sites.`
+  );
+}
+
 async function crawl() {
   const db = await readDb();
   const runType = command === "baseline" ? "baseline" : "incremental";
@@ -36,8 +49,10 @@ if (command === "seed") {
   await seed();
 } else if (command === "enable-radar-pack") {
   await enableRadarPack();
+} else if (command === "prune-radar-pack") {
+  await pruneRadarPack();
 } else if (command === "crawl" || command === "baseline") {
   await crawl();
 } else {
-  console.log("Usage: npm run seed | node src/cli.js enable-radar-pack | npm run baseline | npm run crawl | npm run dev");
+  console.log("Usage: npm run seed | npm run enable-radar-pack | npm run prune-radar-pack | npm run baseline | npm run crawl | npm run dev");
 }

@@ -10,6 +10,7 @@
     "baseline": "node src/cli.js baseline",
     "seed": "node src/cli.js seed",
     "enable-radar-pack": "node src/cli.js enable-radar-pack",
+    "prune-radar-pack": "node src/cli.js prune-radar-pack",
     "check": "node scripts/smoke-test.js"
   },
   "engines": {

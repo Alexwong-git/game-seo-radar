@@ -192,13 +192,13 @@ npm run check
 - B: `kizi.com`
 - B: `twoplayergames.org`
 - B: `1001games.com`
-- B: `htmlgames.com`
-- B: `kiz10.com`
-- B: `gameflare.com`
-- B: `play-games.com`
-- B: `freeonlinegames.com`
-- B: `silvergames.com`
 - B: `kevin.games`
+- C: `htmlgames.com`
+- C: `kiz10.com`
+- C: `gameflare.com`
+- C: `play-games.com`
+- C: `freeonlinegames.com`
+- C: `silvergames.com`
 - C: `playhop.com`
 - C: `gamesgames.com`
 - C: `agame.com`
@@ -228,6 +228,7 @@ npm run check
 ```bash
 npm run seed
 npm run enable-radar-pack
+npm run prune-radar-pack
 ```
 
 ## 运行抓取
