@@ -251,6 +251,10 @@ button {
   flex-wrap: wrap;
 }
 
+.toolbar form {
+  margin: 0;
+}
+
 .button-link {
   display: inline-flex;
   align-items: center;
@@ -272,6 +276,32 @@ button {
   border-color: var(--accent);
   background: var(--accent);
   color: #ffffff;
+}
+
+.radar-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.radar-stats span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--muted-bg);
+  color: #344054;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.radar-stats strong {
+  color: var(--text);
+  font-size: 20px;
 }
 
 .primary {
@@ -471,6 +501,7 @@ dd {
 
   nav,
   .stats,
+  .radar-stats,
   .grid-form,
   .detail-grid {
     grid-template-columns: 1fr;

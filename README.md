@@ -15,6 +15,8 @@
 - 支持站点级 URL include / exclude 过滤规则，降低 sitemap 噪音。
 - 支持站点级请求间隔、超时、单个 sitemap 大小限制和单次 URL 数量上限。
 - sitemap 请求有超时和有限重试，单个子 sitemap 失败会记录为 partial，不会轻易拖垮整站抓取。
+- 增量扫描会优先处理带 `lastmod` 的最新 URL 和最新子 sitemap，避免大站只反复扫描旧库存。
+- Dashboard 内置网站雷达，可一键启用 A/B 级扩展信号源。
 - 支持记录上线 URL、收录状态、7 天曝光点击和复盘备注。
 - 时间展示和每日统计统一使用北京时间。
 - 可通过 `RADAR_PASSWORD` 开启私有访问。
@@ -176,7 +178,7 @@ npm run check
 
 ## 配置站点
 
-系统已经内置 10 个推荐竞品游戏站。打开 `Sites` 页面可以看到“推荐竞品站”区域；如果缺失，可以点击 `Import Missing` 导入。
+系统已经内置 22 个推荐竞品游戏站。打开 `Sites` 页面可以看到“推荐竞品站”区域；如果缺失，可以点击 `Import Missing` 导入。
 
 当前内置站点：
 
@@ -190,8 +192,20 @@ npm run check
 - B: `kizi.com`
 - B: `twoplayergames.org`
 - B: `1001games.com`
+- B: `htmlgames.com`
+- B: `kiz10.com`
+- B: `gameflare.com`
+- B: `play-games.com`
+- B: `freeonlinegames.com`
+- B: `silvergames.com`
+- B: `kevin.games`
+- C: `playhop.com`
+- C: `gamesgames.com`
+- C: `agame.com`
+- C: `gamaverse.com`
+- C: `gamearter.com`
 
-默认只启用 A 级 5 个站点，B 级站点先写入但保持禁用，建议等过滤规则稳定后再逐个启用。
+默认只启用 A 级 5 个站点。Dashboard 和 `Sites` 页面里的 `Enable A+B` 会导入并启用 A/B 主雷达包，C 级站点先保留给实验监控。
 
 方式一：在后台 `Sites` 页面添加：
 
@@ -213,6 +227,7 @@ npm run check
 
 ```bash
 npm run seed
+npm run enable-radar-pack
 ```
 
 ## 运行抓取

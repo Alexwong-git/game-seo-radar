@@ -9,6 +9,7 @@
     "crawl": "node src/cli.js crawl",
     "baseline": "node src/cli.js baseline",
     "seed": "node src/cli.js seed",
+    "enable-radar-pack": "node src/cli.js enable-radar-pack",
     "check": "node scripts/smoke-test.js"
   },
   "engines": {

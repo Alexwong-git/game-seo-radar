@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { readDb, writeDb, nowIso, todayIso } from "../lib/db.js";
 import { isAuthConfigured, requirePrivateAccess } from "../lib/auth.js";
-import { importRecommendedSites, RECOMMENDED_COMPETITOR_SITES } from "../lib/recommended-sites.js";
+import {
+  enableRecommendedSitePack,
+  importRecommendedSites,
+  RECOMMENDED_COMPETITOR_SITES
+} from "../lib/recommended-sites.js";
 import { extractGameNameFromUrl } from "../lib/keywords.js";
 import { crawlEnabledSites, makeSite } from "../lib/sitemap.js";
 import { scoreKeyword } from "../lib/scoring.js";
@@ -88,6 +92,17 @@ function formatPercent(part, total) {
   return `${Math.round((Number(part || 0) / Number(total)) * 100)}%`;
 }
 
+function normalizeDomain(domain = "") {
+  return String(domain).replace(/^www\./, "");
+}
+
+function getBaselineCounts(urls) {
+  return urls.reduce((acc, url) => {
+    if (url.discovery_type === "baseline") acc[url.source_site] = (acc[url.source_site] || 0) + 1;
+    return acc;
+  }, {});
+}
+
 function getRunStatus(run) {
   if (!run) return `<span class="badge muted">pending</span>`;
   if (run.error) {
@@ -102,6 +117,26 @@ function getLatestRunsBySite(runs) {
     if (!latestBySite.has(run.site_domain)) latestBySite.set(run.site_domain, run);
   }
   return [...latestBySite.values()];
+}
+
+function getRecommendedRadarRows(db) {
+  const sitesByDomain = new Map(db.sites.map((site) => [normalizeDomain(site.domain), site]));
+  const latestRunsByDomain = new Map(getLatestRunsBySite(db.runs).map((run) => [normalizeDomain(run.site_domain), run]));
+  const baselineCounts = getBaselineCounts(db.urls);
+
+  return RECOMMENDED_COMPETITOR_SITES.map((recommendation) => {
+    const site = sitesByDomain.get(normalizeDomain(recommendation.domain));
+    const run = site ? latestRunsByDomain.get(normalizeDomain(site.domain)) : null;
+    const baselineCount = site ? baselineCounts[site.domain] || 0 : 0;
+
+    return {
+      recommendation,
+      site,
+      run,
+      baselineCount,
+      hasBaseline: Boolean(site?.baseline_completed_at || baselineCount)
+    };
+  });
 }
 
 function renderDashboard(db) {
@@ -121,6 +156,22 @@ function renderDashboard(db) {
   const failedSites = latestRuns.filter((run) => run.error && run.fetched_url_count === 0).length;
   const enabledSites = db.sites.filter((site) => site.enabled).length;
   const latestFinishedAt = db.runs[0]?.finished_at || "";
+  const radarRows = getRecommendedRadarRows(db);
+  const coreRadarRows = radarRows.filter((row) => ["A", "B"].includes(row.recommendation.priority));
+  const activeRecommended = radarRows.filter((row) => row.site?.enabled).length;
+  const corePendingEnable = coreRadarRows.filter((row) => !row.site || !row.site.enabled).length;
+  const enabledNeedsBaseline = radarRows.filter((row) => row.site?.enabled && !row.hasBaseline).length;
+  const radarPreviewRows = [...radarRows]
+    .sort((a, b) => {
+      const priorityRank = { A: 0, B: 1, C: 2 };
+      const stateRank = (row) => (!row.site ? 0 : !row.site.enabled ? 1 : !row.hasBaseline ? 2 : 3);
+      return (
+        stateRank(a) - stateRank(b) ||
+        priorityRank[a.recommendation.priority] - priorityRank[b.recommendation.priority] ||
+        a.recommendation.domain.localeCompare(b.recommendation.domain)
+      );
+    })
+    .slice(0, 8);
   const opportunityRows = todayUrls
     .slice(0, 8)
     .map((row) => ({
@@ -154,6 +205,53 @@ function renderDashboard(db) {
         <span>异常站点 ${formatNumber(failedSites)}</span>
         <span>最近抓取 ${escapeHtml(formatBeijingDateTime(latestFinishedAt) || "-")}</span>
       </div>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>网站雷达</h2>
+          <p>A/B 站点先作为主信号源，C 站点先观察噪音。</p>
+        </div>
+        <div class="toolbar">
+          <form method="post" action="/api/sites/enable-radar-pack">
+            <button class="primary compact-button" type="submit" ${corePendingEnable === 0 ? "disabled" : ""}>Enable A+B (${corePendingEnable})</button>
+          </form>
+          <a class="button-link" href="/sites">Manage Sites</a>
+        </div>
+      </div>
+      <div class="radar-stats">
+        <span>推荐源 <strong>${formatNumber(RECOMMENDED_COMPETITOR_SITES.length)}</strong></span>
+        <span>已启用 <strong>${formatNumber(activeRecommended)}</strong></span>
+        <span>A/B 待启用 <strong>${formatNumber(corePendingEnable)}</strong></span>
+        <span>待 Baseline <strong>${formatNumber(enabledNeedsBaseline)}</strong></span>
+      </div>
+      <table>
+        <thead><tr><th>级别</th><th>站点</th><th>状态</th><th>最近发现</th><th>建议</th></tr></thead>
+        <tbody>${radarPreviewRows
+          .map((row) => {
+            const status = !row.site
+              ? `<span class="badge muted">not imported</span>`
+              : !row.site.enabled
+                ? `<span class="badge muted">disabled</span>`
+                : !row.hasBaseline
+                  ? `<span class="badge warn">needs baseline</span>`
+                  : row.run?.error
+                    ? getRunStatus(row.run)
+                    : `<span class="badge good">monitoring</span>`;
+            return `<tr>
+              <td><span class="badge ${row.recommendation.priority === "A" ? "good" : row.recommendation.priority === "B" ? "warn" : "muted"}">${row.recommendation.priority}</span></td>
+              <td>${escapeHtml(row.recommendation.domain)}</td>
+              <td>${status}</td>
+              <td>${
+                row.run
+                  ? `${formatNumber(row.run.new_url_count)} new / ${formatNumber(row.run.updated_url_count)} updated<div class="cell-note">${escapeHtml(formatBeijingDateTime(row.run.finished_at))}</div>`
+                  : `<span class="cell-note">-</span>`
+              }</td>
+              <td>${escapeHtml(row.recommendation.reason)}</td>
+            </tr>`;
+          })
+          .join("")}</tbody>
+      </table>
     </section>
     <section class="panel">
       <div class="panel-head">
@@ -202,13 +300,13 @@ function renderDashboard(db) {
 }
 
 function renderSites(db) {
-  const siteDomains = new Set(db.sites.map((site) => site.domain.replace(/^www\./, "")));
-  const baselineCounts = db.urls.reduce((acc, url) => {
-    if (url.discovery_type === "baseline") acc[url.source_site] = (acc[url.source_site] || 0) + 1;
-    return acc;
-  }, {});
+  const siteDomains = new Set(db.sites.map((site) => normalizeDomain(site.domain)));
+  const baselineCounts = getBaselineCounts(db.urls);
   const missingCount = RECOMMENDED_COMPETITOR_SITES.filter(
-    (site) => !siteDomains.has(site.domain.replace(/^www\./, ""))
+    (site) => !siteDomains.has(normalizeDomain(site.domain))
+  ).length;
+  const corePendingEnable = getRecommendedRadarRows(db).filter(
+    (row) => ["A", "B"].includes(row.recommendation.priority) && (!row.site || !row.site.enabled)
   ).length;
 
   return layout(
@@ -218,16 +316,21 @@ function renderSites(db) {
       <div class="panel-head">
         <div>
           <h2>推荐竞品站</h2>
-          <p>前 5 个 A 级站点适合先启用，B 级站点建议等噪音规则稳定后再打开。</p>
+          <p>A/B 站点作为主雷达包，C 级站点保留给实验监控。</p>
         </div>
-        <form method="post" action="/api/sites/import-recommended">
-          <button class="primary compact-button" type="submit" ${missingCount === 0 ? "disabled" : ""}>Import Missing (${missingCount})</button>
-        </form>
+        <div class="toolbar">
+          <form method="post" action="/api/sites/enable-radar-pack">
+            <button class="primary compact-button" type="submit" ${corePendingEnable === 0 ? "disabled" : ""}>Enable A+B (${corePendingEnable})</button>
+          </form>
+          <form method="post" action="/api/sites/import-recommended">
+            <button class="compact-button" type="submit" ${missingCount === 0 ? "disabled" : ""}>Import Missing (${missingCount})</button>
+          </form>
+        </div>
       </div>
       <table>
         <thead><tr><th>优先级</th><th>站点</th><th>Sitemap</th><th>Include</th><th>建议</th><th>状态</th></tr></thead>
         <tbody>${RECOMMENDED_COMPETITOR_SITES.map((site) => {
-          const exists = siteDomains.has(site.domain.replace(/^www\./, ""));
+          const exists = siteDomains.has(normalizeDomain(site.domain));
           return `<tr>
             <td><span class="badge ${site.priority === "A" ? "good" : "warn"}">${site.priority}</span></td>
             <td>${escapeHtml(site.domain)}</td>
@@ -512,6 +615,12 @@ async function handlePost(request, response) {
 
   if (request.url === "/api/sites/import-recommended") {
     importRecommendedSites(db);
+    await writeDb(db);
+    return redirect(response, "/sites");
+  }
+
+  if (request.url === "/api/sites/enable-radar-pack") {
+    enableRecommendedSitePack(db, ["A", "B"]);
     await writeDb(db);
     return redirect(response, "/sites");
   }

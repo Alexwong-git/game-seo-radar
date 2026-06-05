@@ -44,6 +44,14 @@ globalThis.fetch = async (url) => {
       </urlset>`);
   }
 
+  if (url === "https://newest.example.com/sitemap.xml") {
+    return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?>
+      <urlset>
+        <url><loc>https://newest.example.com/game/old-signal</loc><lastmod>2026-05-01</lastmod></url>
+        <url><loc>https://newest.example.com/game/fresh-signal</loc><lastmod>2026-06-04</lastmod></url>
+      </urlset>`);
+  }
+
   throw new Error(`Unexpected fetch: ${url}`);
 };
 
@@ -125,6 +133,37 @@ try {
   const secondResult = await crawlSite(db, site, { delayMs: 1, timeoutMs: 5000 });
   assert.equal(secondResult.newUrls.length, 0);
   assert.equal(db.urls.length, 3);
+
+  const newestDb = {
+    sites: [],
+    urls: [
+      {
+        id: "url_old_signal_baseline",
+        url: "https://newest.example.com/game/old-signal",
+        lastmod: "2026-05-01",
+        source_site: "newest.example.com",
+        sitemap_url: "https://newest.example.com/sitemap.xml",
+        first_seen_at: "2026-06-01T00:00:00.000Z",
+        last_seen_at: "2026-06-01T00:00:00.000Z",
+        fetched_at: "2026-06-01T00:00:00.000Z",
+        discovery_type: "baseline",
+        is_new: false,
+        is_recently_updated: false
+      }
+    ],
+    keywords: [],
+    runs: []
+  };
+  const newestSite = makeSite({
+    domain: "newest.example.com",
+    sitemap_url: "https://newest.example.com/sitemap.xml",
+    include_patterns: "/game/*",
+    incremental_url_limit: 1,
+    request_delay_ms: 1
+  });
+  const newestResult = await crawlSite(newestDb, newestSite, { delayMs: 1, timeoutMs: 5000 });
+  assert.equal(newestResult.newUrls.length, 1);
+  assert.equal(newestResult.newUrls[0].url, "https://newest.example.com/game/fresh-signal");
 
   console.log("Smoke test passed.");
 } finally {

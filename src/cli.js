@@ -1,5 +1,5 @@
 import { readDb, writeDb } from "../lib/db.js";
-import { importRecommendedSites } from "../lib/recommended-sites.js";
+import { enableRecommendedSitePack, importRecommendedSites } from "../lib/recommended-sites.js";
 import { crawlEnabledSites } from "../lib/sitemap.js";
 
 const command = process.argv[2];
@@ -9,6 +9,15 @@ async function seed() {
   const { imported, updated } = importRecommendedSites(db);
   await writeDb(db);
   console.log(`Imported ${imported.length} and updated ${updated.length} recommended competitor sites.`);
+}
+
+async function enableRadarPack() {
+  const db = await readDb();
+  const { imported, updated, enabled } = enableRecommendedSitePack(db, ["A", "B"]);
+  await writeDb(db);
+  console.log(
+    `Imported ${imported.length}, updated ${updated.length}, and enabled ${enabled.length} A/B radar sites.`
+  );
 }
 
 async function crawl() {
@@ -25,8 +34,10 @@ async function crawl() {
 
 if (command === "seed") {
   await seed();
+} else if (command === "enable-radar-pack") {
+  await enableRadarPack();
 } else if (command === "crawl" || command === "baseline") {
   await crawl();
 } else {
-  console.log("Usage: npm run seed | npm run baseline | npm run crawl | npm run dev");
+  console.log("Usage: npm run seed | node src/cli.js enable-radar-pack | npm run baseline | npm run crawl | npm run dev");
 }
