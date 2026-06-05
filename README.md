@@ -229,6 +229,7 @@ npm run check
 npm run seed
 npm run enable-radar-pack
 npm run prune-radar-pack
+npm run backfill-keywords
 ```
 
 ## 运行抓取
@@ -243,6 +244,7 @@ npm run prune-radar-pack
 ```bash
 npm run baseline
 npm run crawl
+npm run backfill-keywords
 ```
 
 抓取逻辑只读取公开 `robots.txt` 和 `sitemap`，不会读取网页正文，不会绕过限制。默认每次请求间隔约 1.2 秒，递归 sitemap index 深度上限为 4。
@@ -252,6 +254,8 @@ npm run crawl
 如果某个站点还没有 baseline，即使误点了 `Run Incremental`，系统也会自动按 baseline 处理，不会生成机会词。
 
 每次抓取都会写入 `runs`。Dashboard 会显示基线 URL、今日真实新增 URL、今日新增机会词、发现 URL、匹配 URL、过滤 URL、新增 URL 和更新 URL。如果根 sitemap 失败，站点本次抓取会显示 `failed`；如果某些子 sitemap 失败但仍抓到部分 URL，会显示 `partial` 并保存错误摘要。
+
+如果先发现了增量 URL，后来才修复 URL 解析规则，可以运行 `npm run backfill-keywords`，它会只给缺失关键词的 `incremental` URL 补生成候选词，不会把 baseline 历史库存加入机会队列。
 
 ## 定时抓取
 

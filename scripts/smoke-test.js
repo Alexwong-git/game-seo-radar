@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
-import { createKeywordCandidates, extractGameNameFromUrl } from "../lib/keywords.js";
+import { backfillKeywordCandidates, createKeywordCandidates, extractGameNameFromUrl } from "../lib/keywords.js";
 import { scoreKeyword } from "../lib/scoring.js";
 import { crawlSite, makeSite } from "../lib/sitemap.js";
 
@@ -166,6 +166,30 @@ try {
   const newestResult = await crawlSite(newestDb, newestSite, { delayMs: 1, timeoutMs: 5000 });
   assert.equal(newestResult.newUrls.length, 1);
   assert.equal(newestResult.newUrls[0].url, "https://newest.example.com/game/fresh-signal");
+
+  const backfillDb = {
+    sites: [],
+    urls: [
+      {
+        id: "url_existing_incremental",
+        url: "https://poki.com/en/g/home-builder-clicker",
+        lastmod: null,
+        source_site: "poki.com",
+        sitemap_url: "https://poki.com/en/sitemaps/index.xml",
+        first_seen_at: "2026-06-05T00:00:00.000Z",
+        last_seen_at: "2026-06-05T00:00:00.000Z",
+        fetched_at: "2026-06-05T00:00:00.000Z",
+        discovery_type: "incremental",
+        is_new: true,
+        is_recently_updated: false
+      }
+    ],
+    keywords: [],
+    runs: []
+  };
+  const backfillResult = backfillKeywordCandidates(backfillDb);
+  assert.equal(backfillResult.created.length, 1);
+  assert.equal(backfillDb.keywords[0].keyword, "home builder clicker");
 
   console.log("Smoke test passed.");
 } finally {
