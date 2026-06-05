@@ -58,6 +58,8 @@ globalThis.fetch = async (url) => {
 try {
   const name = extractGameNameFromUrl("https://example.com/game/banana-cat-run");
   assert.equal(name, "banana cat run");
+  assert.equal(extractGameNameFromUrl("https://poki.com/en/g/home-builder-clicker"), "home builder clicker");
+  assert.equal(extractGameNameFromUrl("https://poki.com/en/g/box-monster-dress-up"), "box monster dress up");
 
   const candidates = createKeywordCandidates({
     sourceSite: "example.com",
